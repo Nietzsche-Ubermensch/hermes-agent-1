@@ -355,6 +355,7 @@ const sidebars: SidebarsConfig = {
                   key: 'skills-optional-communication',
                   collapsed: true,
                   items: [
+                    'user-guide/skills/optional/communication/communication-ai-hedging',
                     'user-guide/skills/optional/communication/communication-one-three-one-rule',
                   ],
                 },
