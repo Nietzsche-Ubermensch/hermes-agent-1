@@ -54,6 +54,9 @@ Every new or modernised skill — bundled, optional, or contributed — meets al
    live network. Run `scripts/run_tests.sh tests/skills/test_<skill>_skill.py -q`.
 8. **`.env.example` additions sit in a clearly delimited block.** Contributor copies of the file are
    usually stale; edits outside the skill's own block are dropped during salvage.
+9. **`description` must not hedge.** The description states the trigger and capability in the
+   indicative mood — no "may help," "could potentially," "might reduce." A hedged description
+   dilutes the skill's trigger and wastes the attention budget on every turn it loads.
 
 No `offset`/`limit` pagination on skill-loading tools — the agent must read a skill fully (root).
 The salvage/modernisation checklist for external skill PRs is `references/new-skill-pr-salvage.md`

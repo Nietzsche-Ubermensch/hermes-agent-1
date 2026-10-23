@@ -1,7 +1,8 @@
 """Tests for the ai-hedging optional skill.
 
-Validates frontmatter structure, body content, and the hedging-pattern
-detection table. No live network, no external dependencies — stdlib + pytest only.
+Validates frontmatter structure, body content, the claim decomposition
+bins, and the frontmatter-as-direct-description principle. No live
+network, no external dependencies — stdlib + pytest only.
 """
 from __future__ import annotations
 
@@ -51,6 +52,14 @@ def test_description_under_60_chars(frontmatter):
 
 def test_description_ends_with_period(frontmatter):
     assert frontmatter["description"].endswith("."), "description must end with a period"
+
+
+def test_description_has_no_hedging(frontmatter):
+    """The description field itself must not hedge."""
+    desc = frontmatter["description"].lower()
+    hedge_words = ("may help", "could potentially", "might reduce", "i think", "it appears")
+    for word in hedge_words:
+        assert word not in desc, f"description contains hedge '{word}'"
 
 
 def test_name_is_valid(frontmatter):
@@ -109,6 +118,19 @@ def test_has_verification(skill_content):
     assert "## Verification" in skill_content, "Missing Verification section"
 
 
+def test_has_front_matter_decomposition(skill_content):
+    assert "## Front Matter Decomposition" in skill_content, "Missing Front Matter Decomposition section"
+    assert "trigger condition" in skill_content.lower(), "Missing trigger condition concept"
+    assert "capability statement" in skill_content.lower(), "Missing capability statement concept"
+
+
+def test_has_claim_decomposition(skill_content):
+    assert "## Claim Decomposition" in skill_content, "Missing Claim Decomposition section"
+    assert "Verified" in skill_content, "Missing Verified bin"
+    assert "Confident recall" in skill_content, "Missing Confident recall bin"
+    assert "Unverified" in skill_content, "Missing Unverified bin"
+
+
 def test_has_hedging_patterns_table(skill_content):
     assert "## Hedging Patterns" in skill_content, "Missing Hedging Patterns section"
     assert "| Pattern |" in skill_content, "Missing pattern table"
@@ -120,3 +142,7 @@ def test_has_hedging_patterns_table(skill_content):
 def test_overcorrection_warning(skill_content):
     assert "Overcorrecting" in skill_content, "Missing overcorrection pitfall"
     assert "false confidence" in skill_content.lower(), "Missing false confidence warning"
+
+
+def test_frontmatter_pitfall(skill_content):
+    assert "Hedging in the frontmatter" in skill_content, "Missing frontmatter hedging pitfall"
