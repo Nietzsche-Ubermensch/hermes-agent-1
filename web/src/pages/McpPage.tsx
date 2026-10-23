@@ -11,7 +11,6 @@ import type {
   McpCatalogEntry,
   McpHttpAuth,
   McpServer,
-  McpServerCreate,
   McpTestResult,
 } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -24,8 +23,12 @@ import { Input } from "@nous-research/ui/ui/components/input";
 import { Label } from "@nous-research/ui/ui/components/label";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
-
-type Transport = "http" | "stdio";
+import {
+  buildMcpServerCreate,
+  type McpTransport,
+} from "@/lib/mcp-server-create";
+import { completeMcpDashboardOAuth } from "@/lib/mcp-dashboard-oauth";
+import { errorMessage } from "@/lib/api-error";
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
@@ -33,29 +36,6 @@ function isHttpUrl(value: string): boolean {
 
 function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(0, maxLength) + "..." : value;
-}
-
-function parseArgs(raw: string): string[] {
-  return raw
-    .split(/[\s,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function parseEnv(raw: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .forEach((line) => {
-      const idx = line.indexOf("=");
-      if (idx === -1) return;
-      const key = line.slice(0, idx).trim();
-      const value = line.slice(idx + 1).trim();
-      if (key) env[key] = value;
-    });
-  return env;
 }
 
 const TRANSPORT_TONE: Record<string, "success" | "warning" | "secondary"> = {
@@ -75,7 +55,7 @@ export default function McpPage() {
   // Add server modal state
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState("");
-  const [transport, setTransport] = useState<Transport>("http");
+  const [transport, setTransport] = useState<McpTransport>("http");
   const [url, setUrl] = useState("");
   const [httpAuth, setHttpAuth] = useState<McpHttpAuth>("none");
   const [bearerToken, setBearerToken] = useState("");
@@ -95,9 +75,9 @@ export default function McpPage() {
   // Test results keyed by server name
   const [testing, setTesting] = useState<string | null>(null);
   const [authenticating, setAuthenticating] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<
-    Record<string, McpTestResult>
-  >({});
+  const [testResults, setTestResults] = useState<Record<string, McpTestResult>>(
+    {},
+  );
 
   // Enable/disable state
   const [togglingName, setTogglingName] = useState<string | null>(null);
@@ -119,7 +99,7 @@ export default function McpPage() {
     return api
       .getMcpServers()
       .then((res) => setServers(res.servers))
-      .catch((e) => showToast(`Error: ${e}`, "error"));
+      .catch((e) => showToast(`Could not load MCP servers: ${errorMessage(e)}`, "error"));
   }, [showToast]);
 
   const loadCatalog = useCallback(() => {
@@ -129,7 +109,7 @@ export default function McpPage() {
         setCatalog(res.entries);
         setDiagnostics(res.diagnostics);
       })
-      .catch((e) => showToast(`Error: ${e}`, "error"));
+      .catch((e) => showToast(`Could not load the MCP catalog: ${errorMessage(e)}`, "error"));
   }, [showToast]);
 
   useEffect(() => {
@@ -139,37 +119,28 @@ export default function McpPage() {
   }, [loadServers, loadCatalog]);
 
   const handleCreate = async () => {
-    if (!name.trim()) {
-      showToast("Name required", "error");
+    let body;
+    try {
+      body = buildMcpServerCreate({
+        name,
+        transport,
+        url,
+        httpAuth,
+        bearerToken,
+        command,
+        args,
+        env,
+      });
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Invalid MCP server",
+        "error",
+      );
       return;
     }
-    if (transport === "http" && !url.trim()) {
-      showToast("URL required", "error");
-      return;
-    }
-    if (transport === "http" && httpAuth === "header" && !bearerToken.trim()) {
-      showToast("Bearer token required", "error");
-      return;
-    }
-    if (transport === "stdio" && !command.trim()) {
-      showToast("Command required", "error");
-      return;
-    }
+
     setCreating(true);
     try {
-      const body: McpServerCreate = { name: name.trim() };
-      if (transport === "http") {
-        body.url = url.trim();
-        if (httpAuth !== "none") body.auth = httpAuth;
-        if (httpAuth === "header") body.bearer_token = bearerToken;
-      } else {
-        body.command = command.trim();
-        const argList = parseArgs(args);
-        if (argList.length) body.args = argList;
-        const envMap = parseEnv(env);
-        if (Object.keys(envMap).length) body.env = envMap;
-      }
-
       await api.addMcpServer(body);
       showToast(
         transport === "http" && httpAuth === "oauth"
@@ -188,7 +159,7 @@ export default function McpPage() {
       setCreateModalOpen(false);
       loadServers();
     } catch (e) {
-      showToast(`Failed to add: ${e}`, "error");
+      showToast(`Could not add MCP server: ${errorMessage(e)}`, "error");
     } finally {
       setCreating(false);
     }
@@ -205,7 +176,7 @@ export default function McpPage() {
         showToast(`${server.name}: ${result.error ?? "Failed"}`, "error");
       }
     } catch (e) {
-      showToast(`Error: ${e}`, "error");
+      showToast(`Could not test the MCP server: ${errorMessage(e)}`, "error");
     } finally {
       setTesting(null);
     }
@@ -214,15 +185,19 @@ export default function McpPage() {
   const handleAuthenticate = async (server: McpServer) => {
     setAuthenticating(server.name);
     try {
-      const result = await api.authMcpServer(server.name);
-      setTestResults((prev) => ({ ...prev, [server.name]: result }));
-      if (result.ok) {
-        showToast(`${server.name}: OAuth authentication complete`, "success");
-      } else {
-        showToast(`${server.name}: ${result.error ?? "OAuth failed"}`, "error");
-      }
+      const result = await completeMcpDashboardOAuth({
+        serverName: server.name,
+        start: api.authMcpServer,
+        status: api.getMcpOAuthFlow,
+        open: window.open.bind(window),
+      });
+      setTestResults((prev) => ({
+        ...prev,
+        [server.name]: { ok: true, tools: result.tools ?? [] },
+      }));
+      showToast(`${server.name}: OAuth authentication complete`, "success");
     } catch (e) {
-      showToast(`OAuth error: ${e}`, "error");
+      showToast(`Could not sign in to the MCP server: ${errorMessage(e)}`, "error");
     } finally {
       setAuthenticating(null);
     }
@@ -234,15 +209,13 @@ export default function McpPage() {
     try {
       await api.setMcpServerEnabled(server.name, next);
       setServers((prev) =>
-        prev.map((s) =>
-          s.name === server.name ? { ...s, enabled: next } : s,
-        ),
+        prev.map((s) => (s.name === server.name ? { ...s, enabled: next } : s)),
       );
       setRestartNote(
         "Enable/disable takes effect on the next gateway restart.",
       );
     } catch (e) {
-      showToast(`Error: ${e}`, "error");
+      showToast(`Could not update the MCP server: ${errorMessage(e)}`, "error");
     } finally {
       setTogglingName(null);
     }
@@ -261,7 +234,7 @@ export default function McpPage() {
           });
           loadServers();
         } catch (e) {
-          showToast(`Error: ${e}`, "error");
+          showToast(`Could not remove the MCP server: ${errorMessage(e)}`, "error");
           throw e;
         }
       },
@@ -284,7 +257,7 @@ export default function McpPage() {
         setInstallEnv({});
         await Promise.all([loadServers(), loadCatalog()]);
       } catch (e) {
-        showToast(`Failed to install: ${e}`, "error");
+        showToast(`Could not install from the catalog: ${errorMessage(e)}`, "error");
       } finally {
         setInstallingName(null);
       }
@@ -420,7 +393,7 @@ export default function McpPage() {
                   id="mcp-transport"
                   value={transport}
                   onValueChange={(value) => {
-                    const nextTransport = value as Transport;
+                    const nextTransport = value as McpTransport;
                     setTransport(nextTransport);
                     if (nextTransport === "stdio") setBearerToken("");
                   }}
@@ -469,15 +442,16 @@ export default function McpPage() {
                         onChange={(e) => setBearerToken(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Stored in this profile&apos;s .env; config.yaml keeps only
-                        an environment-variable reference.
+                        Stored in this profile&apos;s .env; config.yaml keeps
+                        only an environment-variable reference.
                       </p>
                     </div>
                   )}
                   {httpAuth === "oauth" && (
                     <p className="text-xs text-muted-foreground">
                       Add the server, then use Authenticate. Hermes opens the
-                      OAuth browser on the machine running the Dashboard backend.
+                      OAuth browser on the machine running the Dashboard
+                      backend.
                     </p>
                   )}
                 </>
@@ -537,9 +511,7 @@ export default function McpPage() {
         <div
           ref={installModalRef}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4"
-          onClick={(e) =>
-            e.target === e.currentTarget && setInstallEntry(null)
-          }
+          onClick={(e) => e.target === e.currentTarget && setInstallEntry(null)}
           role="dialog"
           aria-modal="true"
           aria-labelledby="install-mcp-title"
@@ -628,14 +600,26 @@ export default function McpPage() {
           </H2>
         </div>
 
-        {restartNote && (
-          <p className="text-xs text-warning">{restartNote}</p>
-        )}
+        {restartNote && <p className="text-xs text-warning">{restartNote}</p>}
 
         {servers.length === 0 && (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No MCP servers configured.
+            <CardContent className="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted-foreground">
+              <p>
+                No MCP servers yet. MCP servers give the agent extra tools (GitHub, databases,
+                browsers…). Pick one from the catalog below, or click Add Server at the top of the page.
+              </p>
+              <Button
+                size="sm"
+                onClick={() =>
+                  document
+                    .getElementById("mcp-catalog")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                prefix={<Package className="h-3.5 w-3.5" />}
+              >
+                Browse catalog
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -664,12 +648,11 @@ export default function McpPage() {
                     </Badge>
                     {server.auth && (
                       <Badge tone="outline">
-                        auth: {server.auth === "header" ? "bearer" : server.auth}
+                        auth:{" "}
+                        {server.auth === "header" ? "bearer" : server.auth}
                       </Badge>
                     )}
-                    {!server.enabled && (
-                      <Badge tone="outline">disabled</Badge>
-                    )}
+                    {!server.enabled && <Badge tone="outline">disabled</Badge>}
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     {server.transport === "http" ? (
@@ -736,11 +719,7 @@ export default function McpPage() {
                     onClick={() => handleToggleEnabled(server)}
                     disabled={togglingName === server.name}
                     prefix={
-                      togglingName === server.name ? (
-                        <Spinner />
-                      ) : (
-                        <Power />
-                      )
+                      togglingName === server.name ? <Spinner /> : <Power />
                     }
                     className={server.enabled ? "text-success" : undefined}
                   >
@@ -783,7 +762,7 @@ export default function McpPage() {
             className="flex items-center gap-2 text-muted-foreground"
           >
             <Package className="h-4 w-4" />
-            Catalog ({catalog.length})
+            <span id="mcp-catalog">Catalog ({catalog.length})</span>
           </H2>
         </div>
 
@@ -831,9 +810,7 @@ export default function McpPage() {
                         <Badge tone="outline">{entry.source}</Badge>
                       )
                     )}
-                    {entry.installed && (
-                      <Badge tone="success">Installed</Badge>
-                    )}
+                    {entry.installed && <Badge tone="success">Installed</Badge>}
                     {entry.installed && !entry.enabled && (
                       <Badge tone="outline">disabled</Badge>
                     )}
@@ -875,9 +852,7 @@ export default function McpPage() {
                       ) : (
                         <code className="font-mono">{entry.install_url}</code>
                       )}
-                      {entry.install_ref && (
-                        <span> @ {entry.install_ref}</span>
-                      )}
+                      {entry.install_ref && <span> @ {entry.install_ref}</span>}
                     </p>
                   )}
                   {entry.bootstrap.length > 0 && (
@@ -887,7 +862,10 @@ export default function McpPage() {
                       </summary>
                       <ul className="mt-1 ml-3 list-disc space-y-0.5">
                         {entry.bootstrap.map((cmd, i) => (
-                          <li key={`${entry.name}-bs-${i}`} className="break-all">
+                          <li
+                            key={`${entry.name}-bs-${i}`}
+                            className="break-all"
+                          >
                             <code className="font-mono">{cmd}</code>
                           </li>
                         ))}
