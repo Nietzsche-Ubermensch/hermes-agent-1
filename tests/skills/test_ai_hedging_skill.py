@@ -14,7 +14,7 @@ import hermes_yaml as yaml
 
 SKILL_PATH = (
     Path(__file__).resolve().parents[2]
-    / "optional-skills"
+    / "skills"
     / "communication"
     / "ai-hedging"
     / "SKILL.md"

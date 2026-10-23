@@ -51,7 +51,6 @@ hermes skills uninstall <skill-name>
 
 | Skill | Description |
 |-------|-------------|
-| [**ai-hedging**](../user-guide/skills/optional/communication/communication-ai-hedging.md) | Decompose claims by evidence and strip unearned hedging. |
 | [**one-three-one-rule**](../user-guide/skills/optional/communication/communication-one-three-one-rule.md) | 1-3-1 decision briefs: problem, three options, one pick. |
 
 ## creative

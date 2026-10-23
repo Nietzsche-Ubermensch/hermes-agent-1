@@ -14,8 +14,8 @@ Decompose claims by evidence and strip unearned hedging.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/communication/ai-hedging` |
-| Path | `optional-skills/communication/ai-hedging` |
+| Source | Bundled (installed by default) |
+| Path | `skills/communication/ai-hedging` |
 | Version | `0.2.0` |
 | Author | dropstart01 (dropstart01), Hermes Agent |
 | License | MIT |

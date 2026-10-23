@@ -30,6 +30,13 @@ If a skill is missing from this list but present in the repo, the catalog is reg
 | [`computer-use`](../user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-computer-use.md) | Drive the desktop background-first; escalate on signal. | `autonomous-ai-agents/computer-use` |
 | [`hermes-agent`](../user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-hermes-agent.md) | Use, configure, theme, extend, and orchestrate Hermes Agent. | `autonomous-ai-agents/hermes-agent` |
 | [`opencode`](../user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-opencode.md) | Delegate coding to OpenCode CLI (features, PR review). | `autonomous-ai-agents/opencode` |
+| [`overwatch`](../user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-overwatch.md) | Audit every agent action for safety and correctness. | `autonomous-ai-agents/overwatch` |
+
+## communication
+
+| Skill | Description | Path |
+|-------|-------------|------|
+| [`ai-hedging`](../user-guide/skills/bundled/communication/communication-ai-hedging.md) | Decompose claims by evidence and strip unearned hedging. | `communication/ai-hedging` |
 
 ## creative
 

@@ -185,6 +185,16 @@ const sidebars: SidebarsConfig = {
                     'user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-computer-use',
                     'user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-hermes-agent',
                     'user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-opencode',
+                    'user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-overwatch',
+                  ],
+                },
+                {
+                  type: 'category',
+                  label: 'communication',
+                  key: 'skills-bundled-communication',
+                  collapsed: true,
+                  items: [
+                    'user-guide/skills/bundled/communication/communication-ai-hedging',
                   ],
                 },
                 {
@@ -355,7 +365,6 @@ const sidebars: SidebarsConfig = {
                   key: 'skills-optional-communication',
                   collapsed: true,
                   items: [
-                    'user-guide/skills/optional/communication/communication-ai-hedging',
                     'user-guide/skills/optional/communication/communication-one-three-one-rule',
                   ],
                 },
